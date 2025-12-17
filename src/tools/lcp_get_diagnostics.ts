@@ -4,7 +4,7 @@
 
 import type { ToolResult, DiagnosticInfo } from '../core/types.js';
 import { sessionStore } from '../core/session.js';
-import { PyrightClient } from '../lsp/pyright.js';
+import { languageRouter } from '../core/router.js';
 import { LSPManager } from '../lsp/manager.js';
 import { resolvePath } from '../utils/path-resolver.js';
 import { withErrorHandling } from '../utils/error-handler.js';
@@ -35,38 +35,37 @@ export async function lcpGetDiagnostics(
       throw new Error('Either sessionId or workspaceRoot must be provided');
     }
 
-    // Initialize LSP client if needed
-    if (!session.lspClient) {
-      const lspClient = new PyrightClient(session.workspaceRoot);
-      await lspClient.start();
-      await lspClient.initialize();
-      session.lspClient = lspClient;
-    }
-
-    // Create LSP manager
-    const lspManager = new LSPManager(session.lspClient, session);
-
-    // If file path provided, ensure it's open to get diagnostics
+    // Use current file or workspaceroot to determine LSP client
+    // If no filePath, we might need a default language or handle all supported
+    // For now, if no filePath, we'll try to get diagnostics from all active clients
+    
     if (params.filePath) {
       const absolutePath = resolvePath(params.filePath, session.workspaceRoot);
+      const lspClient = await languageRouter.getLSPClient(session, absolutePath);
+      const lspManager = new LSPManager(lspClient, session);
+
       await lspManager.openFile(absolutePath);
 
       // Wait a bit for diagnostics to be published
       await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      const diagnostics = lspManager.getDiagnostics(absolutePath);
+      logger.info('lcp_get_diagnostics completed', {
+        filePath: params.filePath,
+        diagnosticCount: diagnostics.length,
+      });
+      return diagnostics;
+    } else {
+      // Get all diagnostics from session (published by any client)
+      const allDiagnostics: DiagnosticInfo[] = [];
+      for (const diagnostics of session.diagnostics.values()) {
+        allDiagnostics.push(...diagnostics);
+      }
+      
+      logger.info('lcp_get_diagnostics completed', {
+        totalDiagnostics: allDiagnostics.length,
+      });
+      return allDiagnostics;
     }
-
-    // Get diagnostics
-    const diagnostics = params.filePath
-      ? lspManager.getDiagnostics(
-          resolvePath(params.filePath, session.workspaceRoot)
-        )
-      : lspManager.getDiagnostics();
-
-    logger.info('lcp_get_diagnostics completed', {
-      filePath: params.filePath,
-      diagnosticCount: diagnostics.length,
-    });
-
-    return diagnostics;
   });
 }

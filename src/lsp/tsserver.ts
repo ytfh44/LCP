@@ -10,8 +10,8 @@ import { logger } from '../utils/logger.js';
  */
 export class TSServerClient extends LSPClient {
   constructor(workspaceRoot: string) {
-    // typescript-language-server should be installed via: npm install -g typescript-language-server typescript
-    super('typescript-language-server', ['--stdio'], workspaceRoot);
+    // Use npx to run typescript-language-server
+    super('npx', ['--yes', 'typescript-language-server', '--stdio'], workspaceRoot);
   }
 
   /**

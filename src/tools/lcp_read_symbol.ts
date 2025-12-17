@@ -4,11 +4,12 @@
 
 import type { ToolResult } from '../core/types.js';
 import { sessionStore } from '../core/session.js';
-import { PyrightClient } from '../lsp/pyright.js';
+import { languageRouter } from '../core/router.js';
 import { LSPManager } from '../lsp/manager.js';
 import { resolvePath } from '../utils/path-resolver.js';
 import { withErrorHandling, SymbolError } from '../utils/error-handler.js';
 import { logger } from '../utils/logger.js';
+import { findSymbol, truncateCode } from '../utils/symbol-utils.js';
 import fs from 'fs';
 
 interface ReadSymbolParams {
@@ -37,25 +38,27 @@ export async function lcpReadSymbol(
       throw new Error('Either sessionId or workspaceRoot must be provided');
     }
 
-    // Initialize LSP client if needed
-    if (!session.lspClient) {
-      const lspClient = new PyrightClient(session.workspaceRoot);
-      await lspClient.start();
-      await lspClient.initialize();
-      session.lspClient = lspClient;
-    }
-
-    // Create LSP manager
-    const lspManager = new LSPManager(session.lspClient, session);
-
     // Resolve file path
     const absolutePath = resolvePath(params.filePath, session.workspaceRoot);
+
+    // Get LSP client via router (multi-language support)
+    const lspClient = await languageRouter.getLSPClient(session, absolutePath);
+    
+    // Create LSP manager
+    const lspManager = new LSPManager(lspClient, session);
 
     // Get document symbols
     const symbols = await lspManager.getDocumentSymbols(absolutePath);
 
+    if (!symbols || !Array.isArray(symbols)) {
+       throw new SymbolError(
+        `No symbols found in file ${params.filePath}`,
+        { filePath: params.filePath }
+      );
+    }
+
     // Find the symbol
-    const symbol = findSymbol(symbols as unknown[], params.symbolName);
+    const symbol = findSymbol(symbols as any[], params.symbolName);
     if (!symbol) {
       throw new SymbolError(
         `Symbol "${params.symbolName}" not found in ${params.filePath}`,
@@ -67,109 +70,28 @@ export async function lcpReadSymbol(
     const content = fs.readFileSync(absolutePath, 'utf-8');
     const lines = content.split('\n');
 
-    // Extract symbol code (convert from 0-based to array index)
+    // Extract symbol code (indices are 0-based from LSP)
     const startLine = symbol.range.start.line;
     const endLine = symbol.range.end.line;
+    
+    // Safety check for line ranges
+    if (startLine < 0 || endLine >= lines.length || startLine > endLine) {
+        throw new SymbolError(`Invalid range for symbol ${params.symbolName}`, {
+            range: symbol.range,
+            totalLines: lines.length
+        });
+    }
+
     const symbolCode = lines.slice(startLine, endLine + 1).join('\n');
 
-    // Check if too long (>10k tokens, roughly 40k characters)
-    const maxLength = 40000;
-    if (symbolCode.length > maxLength) {
-      const truncated = truncateCode(symbolCode, maxLength);
-      logger.warn('Symbol code truncated', {
-        symbolName: params.symbolName,
-        originalLength: symbolCode.length,
-        truncatedLength: truncated.length,
-      });
-      return truncated;
-    }
+    // Check if too long and truncate if necessary
+    const processedCode = truncateCode(symbolCode);
 
     logger.info('lcp_read_symbol completed', {
       symbolName: params.symbolName,
-      codeLength: symbolCode.length,
+      codeLength: processedCode.length,
     });
 
-    return symbolCode;
+    return processedCode;
   });
-}
-
-/**
- * Find a symbol by name (supports fuzzy matching)
- */
-function findSymbol(
-  symbols: unknown[],
-  symbolName: string
-): {
-  range: {
-    start: { line: number; character: number };
-    end: { line: number; character: number };
-  };
-} | null {
-  const normalizedName = symbolName.toLowerCase();
-
-  for (const symbol of symbols) {
-    const s = symbol as {
-      name: string;
-      range: {
-        start: { line: number; character: number };
-        end: { line: number; character: number };
-      };
-      children?: unknown[];
-    };
-
-    // Exact match
-    if (s.name === symbolName) {
-      return s;
-    }
-
-    // Case-insensitive match
-    if (s.name.toLowerCase() === normalizedName) {
-      return s;
-    }
-
-    // Check children recursively
-    if (s.children) {
-      const childSymbol = findSymbol(s.children, symbolName);
-      if (childSymbol) {
-        return childSymbol;
-      }
-    }
-  }
-
-  // Fuzzy match (contains)
-  for (const symbol of symbols) {
-    const s = symbol as {
-      name: string;
-      range: {
-        start: { line: number; character: number };
-        end: { line: number; character: number };
-      };
-      children?: unknown[];
-    };
-
-    if (s.name.toLowerCase().includes(normalizedName)) {
-      return s;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Truncate code while preserving structure
- */
-function truncateCode(code: string, maxLength: number): string {
-  const lines = code.split('\n');
-  const headerLines = Math.floor(maxLength / 200); // Rough estimate
-  const footerLines = headerLines;
-
-  if (lines.length <= headerLines + footerLines) {
-    return code;
-  }
-
-  const header = lines.slice(0, headerLines).join('\n');
-  const footer = lines.slice(-footerLines).join('\n');
-  const skippedLines = lines.length - headerLines - footerLines;
-
-  return `${header}\n\n... (skipping ${skippedLines} lines) ...\n\n${footer}`;
 }

@@ -7,6 +7,7 @@ import type { DiagnosticInfo, Session } from '../core/types.js';
 import { logger } from '../utils/logger.js';
 import { pathToUri, uriToPath } from '../utils/path-resolver.js';
 import { toOneBased } from '../utils/coordinate-converter.js';
+import { languageRouter } from '../core/router.js';
 import fs from 'fs';
 
 /**
@@ -20,16 +21,21 @@ export class LSPManager {
     private lspClient: LSPClient,
     private session: Session
   ) {
-    // Register diagnostic handler
-    this.lspClient.onNotification(
-      'textDocument/publishDiagnostics',
-      (params: unknown) => {
-        this.handleDiagnostics(params as {
-          uri: string;
-          diagnostics: unknown[];
-        });
-      }
-    );
+    // Register diagnostic handler only if not already registered on this client
+    // We check for a private marker on the client to avoid duplicate handlers
+    const clientAny = this.lspClient as any;
+    if (!clientAny._lcp_diagnostic_handler_registered) {
+      this.lspClient.onNotification(
+        'textDocument/publishDiagnostics',
+        (params: unknown) => {
+          this.handleDiagnostics(params as {
+            uri: string;
+            diagnostics: unknown[];
+          });
+        }
+      );
+      clientAny._lcp_diagnostic_handler_registered = true;
+    }
   }
 
   /**
@@ -54,8 +60,8 @@ export class LSPManager {
     // Read file content
     const content = fs.readFileSync(filePath, 'utf-8');
 
-    // Detect language ID from file extension
-    const languageId = this.getLanguageId(filePath);
+    // Detect language ID using LanguageRouter (centralized)
+    const languageId = languageRouter.getLanguageId(filePath);
 
     // Send didOpen notification
     await this.lspClient.sendNotification('textDocument/didOpen', {
@@ -338,33 +344,6 @@ export class LSPManager {
         return 'hint';
       default:
         return 'info';
-    }
-  }
-
-  /**
-   * Get language ID from file extension
-   */
-  private getLanguageId(filePath: string): string {
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'py':
-        return 'python';
-      case 'js':
-        return 'javascript';
-      case 'ts':
-        return 'typescript';
-      case 'go':
-        return 'go';
-      case 'c':
-      case 'h':
-        return 'c';
-      case 'cpp':
-      case 'cc':
-      case 'cxx':
-      case 'hpp':
-        return 'cpp';
-      default:
-        return 'plaintext';
     }
   }
 

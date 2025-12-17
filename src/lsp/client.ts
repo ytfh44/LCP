@@ -237,9 +237,9 @@ export class LSPClient {
   /**
    * Handle a parsed LSP message
    */
-  private handleMessage(message: LSPMessage): void {
-    if ('id' in message) {
-      // Response
+  private handleMessage(message: any): void {
+    if ('id' in message && ('result' in message || 'error' in message)) {
+      // Response to our request
       const pending = this.pendingRequests.get(message.id);
       if (pending) {
         this.pendingRequests.delete(message.id);
@@ -256,7 +256,16 @@ export class LSPClient {
           pending.resolve(message.result);
         }
       }
-    } else {
+    } else if ('id' in message && 'method' in message) {
+      // Request from server
+      logger.debug('Server request received', {
+        method: message.method,
+        id: message.id,
+      });
+
+      // Default response (can be extended to handle specific requests)
+      this.sendResponse(message.id, null);
+    } else if ('method' in message) {
       // Notification
       const handler = this.notificationHandlers.get(message.method);
       if (handler) {
@@ -265,6 +274,23 @@ export class LSPClient {
         logger.debug('Unhandled LSP notification', { method: message.method });
       }
     }
+  }
+
+  /**
+   * Send a response to a server request
+   */
+  private sendResponse(id: number, result: any): void {
+    if (!this.process || !this.process.stdin) return;
+
+    const response = {
+      jsonrpc: '2.0',
+      id,
+      result,
+    };
+
+    const content = JSON.stringify(response);
+    const message = `Content-Length: ${Buffer.byteLength(content)}\r\n\r\n${content}`;
+    this.process.stdin.write(message);
   }
 
   /**

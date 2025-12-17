@@ -147,9 +147,10 @@ async function runAgent() {
       role: 'system',
       content: `You are a QA Agent verifying the LCP (Language Context Provider) tools. 
       Your task is to explore the codebase using the provided tools.
-      1. Start by getting the outline of 'src/index.ts'.
-      2. Pick a symbol from the outline and read its content.
-      3. Check for any diagnostics in the workspace.
+      Follow these steps:
+1. Get the outline of the file "test/fixtures/sample.py".
+2. Pick a class or function from the outline and read its content using lcp_read_symbol.
+3. Check for any diagnostics in "test/fixtures/sample.py".
       
       The workspace root is: ${workspaceRoot}
       ALWAYS provide 'workspaceRoot' in your tool calls.
@@ -157,7 +158,7 @@ async function runAgent() {
     },
     {
       role: 'user',
-      content: `Please analyze 'src/index.ts'.`
+      content: `Please analyze 'test/fixtures/sample.py'.`
     }
   ];
 
