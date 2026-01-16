@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   pathToUri,
   uriToPath,
@@ -11,7 +12,7 @@ import { FileError } from '../../../src/utils/error-handler';
 import path from 'path';
 import * as fs from 'fs';
 
-// Mock the fs module to avoid actual file system operations
+// Mock fs module to avoid actual file system operations
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   statSync: jest.fn(),
@@ -82,21 +83,21 @@ describe('path-resolver', () => {
   describe('fileExists', () => {
     it('should return true if file exists', () => {
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.statSync.mockReturnValue({ isFile: () => true } as fs.Stats);
+      mockedFs.statSync.mockReturnValue({ isFile: () => true } as any);
       
       expect(fileExists('test/file.py')).toBe(true);
     });
 
     it('should return false if file does not exist', () => {
       mockedFs.existsSync.mockReturnValue(false);
-      
+
       expect(fileExists('test/file.py')).toBe(false);
     });
 
     it('should return false if path is a directory', () => {
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.statSync.mockReturnValue({ isFile: () => false } as fs.Stats);
-      
+      mockedFs.statSync.mockReturnValue({ isFile: () => false } as any);
+
       expect(fileExists('test/directory')).toBe(false);
     });
 
@@ -105,7 +106,7 @@ describe('path-resolver', () => {
       mockedFs.statSync.mockImplementation(() => {
         throw new Error('Permission denied');
       });
-      
+
       expect(fileExists('test/file.py')).toBe(false);
     });
   });
@@ -132,10 +133,29 @@ describe('path-resolver', () => {
 
   describe('findMatchingFiles', () => {
     it('should find matching files in workspace', () => {
-      // Mock the file system structure
+      // Mock file system structure
       mockedFs.readdirSync.mockImplementation(() => {
         return [];
       });
+
+      mockedFs.statSync.mockImplementation(() => {
+        return { isDirectory: () => false } as any;
+      });
+
+      const matches = findMatchingFiles('file.py', 'C:\\workspace');
+
+      expect(matches).toEqual([]);
+    });
+
+    it('should return empty array if no files match', () => {
+      mockedFs.readdirSync.mockReturnValue([]);
+      mockedFs.statSync.mockReturnValue({ isDirectory: () => false } as any);
+
+      const matches = findMatchingFiles('nonexistent.py', 'C:\\workspace');
+
+      expect(matches).toEqual([]);
+    });
+  });
       
       mockedFs.statSync.mockImplementation(() => {
         return { isDirectory: () => false } as fs.Stats;
@@ -161,12 +181,12 @@ describe('path-resolver', () => {
       const filePath = 'test/file.py';
       const workspaceRoot = 'C:\\workspace';
       const absolutePath = `C:${path.sep}workspace${path.sep}test${path.sep}file.py`;
-      
+
       mockedFs.existsSync.mockReturnValue(true);
-      mockedFs.statSync.mockReturnValue({ isFile: () => true } as fs.Stats);
-      
+      mockedFs.statSync.mockReturnValue({ isFile: () => true } as any);
+
       const resolvedPath = resolvePath(filePath, workspaceRoot);
-      
+
       expect(resolvedPath).toBe(absolutePath);
     });
 

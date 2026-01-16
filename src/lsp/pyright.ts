@@ -5,14 +5,14 @@
 import { LSPClient } from './client.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Pyright LSP client for Python language support
- */
-export class PyrightClient extends LSPClient {
-  constructor(workspaceRoot: string) {
-    // Pyright is installed as npm package, use npx to run it
-    super('npx', ['--yes', 'pyright-langserver', '--stdio'], workspaceRoot);
-  }
+  /**
+   * Pyright LSP client for Python language support
+   */
+  export class PyrightClient extends LSPClient {
+    constructor(workspaceRoot: string) {
+      // Pyright is installed as npm package, use npx to run it
+      super('npx', ['--yes', 'pyright-langserver', '--stdio'], workspaceRoot);
+    }
 
   /**
    * Initialize with Python-specific capabilities

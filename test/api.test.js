@@ -1,16 +1,16 @@
 
-
+ 
 import path from 'path';
 import { fileURLToPath } from 'url';
-// import { lcpGetOutline } from '../dist/tools/lcp_get_outline.js';
-// import { lcpReadSymbol } from '../dist/tools/lcp_read_symbol.js';
-// import { lcpGetDiagnostics } from '../dist/tools/lcp_get_diagnostics.js';
-// import { lcpDebugLaunch } from '../dist/tools/lcp_debug_launch.js';
-// import { lcpAddBreakpoint } from '../dist/tools/lcp_add_breakpoint.js';
-// import { lcpDebugStep } from '../dist/tools/lcp_debug_step.js';
-// import { lcpDebugEvaluate } from '../dist/tools/lcp_debug_evaluate.js';
-// import { lcpDebugStop } from '../dist/tools/lcp_debug_stop.js';
-// import { sessionStore } from '../dist/core/session.js';
+import { lcpGetOutline } from '../dist/tools/lcp_get_outline.js';
+import { lcpReadSymbol } from '../dist/tools/lcp_read_symbol.js';
+import { lcpGetDiagnostics } from '../dist/tools/lcp_get_diagnostics.js';
+import { lcpDebugLaunch } from '../dist/tools/lcp_debug_launch.js';
+import { lcpAddBreakpoint } from '../dist/tools/lcp_add_breakpoint.js';
+import { lcpDebugStep } from '../dist/tools/lcp_debug_step.js';
+import { lcpDebugEvaluate } from '../dist/tools/lcp_debug_evaluate.js';
+import { lcpDebugStop } from '../dist/tools/lcp_debug_stop.js';
+import { sessionStore } from '../dist/core/session.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
